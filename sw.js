@@ -1,24 +1,31 @@
-// データを更新したら VERSION を変えてください（古いキャッシュが入れ替わります）
-const VERSION = 'ylist-20210514-v1';
+// データや辞書を更新したら VERSION を変えてください
+const VERSION = 'ylist-20210514-v3';
 const CORE = ['./', 'index.html', 'data.json', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
+  // cache:'reload' でブラウザのHTTPキャッシュを経由せず、必ずサーバーから最新を取得
+  e.waitUntil(caches.open(VERSION)
+    .then(c => Promise.all(CORE.map(u => fetch(new Request(u, { cache: 'reload' })).then(r => c.put(u, r)))))
+    .then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-  // キャッシュ優先。無ければ取得してキャッシュ（Google Fonts もここで保存され、オフラインで使えます）
-  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit ||
-    fetch(e.request).then(res => {
-      if (res && (res.ok || res.type === 'opaque')) {
-        const copy = res.clone();
-        caches.open(VERSION).then(c => c.put(e.request, copy));
-      }
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  // ページ本体はネットワーク優先（オンラインなら常に最新、オフライン時だけキャッシュ）
+  if (req.mode === 'navigate') {
+    e.respondWith(fetch(req, { cache: 'no-cache' }).then(res => {
+      const copy = res.clone(); caches.open(VERSION).then(c => c.put('index.html', copy)); return res;
+    }).catch(() => caches.match('index.html')));
+    return;
+  }
+  // それ以外（data.json・アイコン・フォント）はキャッシュ優先
+  e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit ||
+    fetch(req).then(res => {
+      if (res && (res.ok || res.type === 'opaque')) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
       return res;
-    }).catch(() => caches.match('index.html'))
-  ));
+    })));
 });
