@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>YList 植物名検索</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#3F7550">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="植物名検索">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F2F5F1; --surface:#FFFFFF; --ink:#18302A; --ink2:#51665E; --line:#D5DFD8;
+  --moss:#3F7550; --mossSoft:#E1EDE3; --bark:#8A5A34; --barkSoft:#F4E9DE; --hit:#FFE98A; --syn:#7B8A84;
+  --jp:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",system-ui,sans-serif;
+  --la:"Newsreader","Georgia","Times New Roman",serif;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#101A17; --surface:#17241F; --ink:#E4EEE8; --ink2:#9DB2A9; --line:#2A3B34;
+  --moss:#8BC59A; --mossSoft:#1F3A2C; --bark:#E0AE85; --barkSoft:#3A2A1E; --hit:#6B5A12; --syn:#7F948B;}}
+:root[data-theme="dark"]{
+  --bg:#101A17; --surface:#17241F; --ink:#E4EEE8; --ink2:#9DB2A9; --line:#2A3B34;
+  --moss:#8BC59A; --mossSoft:#1F3A2C; --bark:#E0AE85; --barkSoft:#3A2A1E; --hit:#6B5A12; --syn:#7F948B;}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--jp);font-size:16px;line-height:1.6;-webkit-text-size-adjust:100%}
+.wrap{max-width:760px;margin:0 auto;padding:0 16px}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding:14px 0 10px;border-bottom:1px solid var(--line)}
+h1{font-size:15px;font-weight:700;margin:0 0 8px;color:var(--moss);letter-spacing:.02em}
+h1 span{font-weight:400;color:var(--ink2);margin-left:6px}
+.search{position:relative}
+.search input{width:100%;font:inherit;font-size:18px;padding:12px 44px 12px 14px;border:2px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);outline:none}
+.search input:focus{border-color:var(--moss)}
+.clear{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--ink2);font-size:22px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:none}
+.clear.on{display:block}
+.filters{display:flex;gap:8px;margin-top:10px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.filters::-webkit-scrollbar{display:none}
+select{font:inherit;font-size:14px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 28px 6px 12px;appearance:none;-webkit-appearance:none;flex:0 0 auto;max-width:200px;
+  background-image:linear-gradient(45deg,transparent 50%,var(--ink2) 50%),linear-gradient(135deg,var(--ink2) 50%,transparent 50%);background-position:calc(100% - 15px) 55%,calc(100% - 10px) 55%;background-size:5px 5px;background-repeat:no-repeat}
+select.set{border-color:var(--moss);background-color:var(--mossSoft);color:var(--moss);font-weight:500}
+.meta{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--ink2);margin:10px 0 4px}
+.meta button{font:inherit;font-size:13px;border:0;background:none;color:var(--moss);cursor:pointer;padding:4px 0}
+ul.res{list-style:none;margin:0;padding:0}
+li.item{border-bottom:1px solid var(--line)}
+li.item button{all:unset;display:block;width:100%;padding:12px 2px;cursor:pointer;box-sizing:border-box}
+li.item button:focus-visible{outline:2px solid var(--moss);outline-offset:2px;border-radius:6px}
+.wa{font-size:19px;font-weight:700;line-height:1.35}
+.syn .wa{font-weight:500;color:var(--ink2)}
+.sci{font-family:var(--la);font-size:16px;color:var(--ink);word-break:break-word}
+.sci i{font-style:italic}
+.sci .au{font-style:normal;font-family:var(--jp);font-size:13px;color:var(--ink2)}
+.sub{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:4px;font-size:13px;color:var(--ink2)}
+.tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:12px;line-height:1.7}
+.t-fam{background:var(--barkSoft);color:var(--bark)}
+.t-st{border:1px solid var(--syn);color:var(--syn)}
+.t-std{background:var(--mossSoft);color:var(--moss)}
+.t-eco{border:1px solid var(--bark);color:var(--bark)}
+mark{background:var(--hit);color:inherit;border-radius:2px;padding:0 1px}
+.more{display:block;width:100%;margin:16px 0 32px;padding:12px;font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--moss);border-radius:10px;cursor:pointer}
+.empty{padding:40px 8px;text-align:center;color:var(--ink2)}
+.empty p{margin:0 0 6px}
+.hint{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px}
+.hint button{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:6px 14px;cursor:pointer}
+/* sheet */
+.scrim{position:fixed;inset:0;background:rgba(10,20,16,.45);z-index:20;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:21;max-height:88%;overflow:auto;background:var(--surface);border-radius:18px 18px 0 0;
+  padding:8px 20px calc(24px + env(safe-area-inset-bottom,0px));transform:translateY(100%);transition:transform .25s ease;max-width:760px;margin:0 auto;box-shadow:0 -8px 30px rgba(0,0,0,.18)}
+.sheet.on{transform:none}
+.grab{width:40px;height:4px;border-radius:2px;background:var(--line);margin:4px auto 12px}
+.sheet .wa{font-size:24px}
+.sheet .sci{font-size:19px;margin:2px 0 8px}
+.close{position:sticky;top:0;float:right;border:0;background:var(--bg);color:var(--ink);width:34px;height:34px;border-radius:50%;font-size:18px;cursor:pointer}
+dl{display:grid;grid-template-columns:max-content 1fr;gap:6px 12px;margin:14px 0;font-size:14px}
+dt{color:var(--ink2)}
+dd{margin:0;word-break:break-word}
+dd .en{font-family:var(--la);font-style:italic;color:var(--ink2);margin-left:6px}
+h3{font-size:14px;color:var(--moss);margin:18px 0 6px;padding-top:12px;border-top:1px solid var(--line)}
+.rel{list-style:none;margin:0;padding:0}
+.rel li{padding:6px 0;border-bottom:1px dashed var(--line);font-size:14px;cursor:pointer}
+.rel li:last-child{border:0}
+.linkbtn{font:inherit;font-size:13px;border:1px solid var(--moss);color:var(--moss);background:none;border-radius:999px;padding:4px 12px;cursor:pointer;margin:4px 6px 0 0}
+@media (prefers-reduced-motion: reduce){.sheet,.scrim{transition:none}}
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap">
+  <h1>YList 植物名検索<span id="total"></span></h1>
+  <div class="search">
+    <input id="q" type="text" placeholder="和名・別名・学名・科名で検索" autocomplete="off" enterkeyhint="search" aria-label="検索語">
+    <button class="clear" id="clr" aria-label="検索語を消す">×</button>
+  </div>
+  <div class="filters">
+    <select id="fOrd" aria-label="目で絞り込み"><option value="">すべての目</option></select>
+    <select id="fFam" aria-label="科で絞り込み"><option value="">すべての科</option></select>
+    <select id="fSt" aria-label="ステータスで絞り込み"><option value="">ステータス</option></select>
+    <select id="fEco" aria-label="生態で絞り込み"><option value="">生態</option></select>
+  </div>
+</div></header>
+<main class="wrap">
+  <div class="meta"><span id="count"></span><button id="reset" hidden>条件をリセット</button></div>
+  <ul class="res" id="list"></ul>
+  <div id="emptyBox"></div>
+  <button class="more" id="more" hidden>さらに表示</button>
+</main>
+<div class="scrim" id="scrim"></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="植物の詳細"></section>
+<script>
+if('serviceWorker' in navigator){addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));}
+document.getElementById('count').textContent='データを読み込み中…';
+fetch('data.json').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();}).then(start).catch(()=>{
+  document.getElementById('count').textContent='データを読み込めませんでした。data.json が index.html と同じ場所にあるか確認してください。';});
+function start(D){
+const R=D.rows, N=R.length;
+const split=a=>a.map(x=>x.split('\t'));
+const FAM=split(D.fam), ORD=split(D.ord), ENG=split(D.eng), FAM2=split(D.fam2), CRO=D.cro, ST=D.st;
+const ECOL={'外':'外来','栽':'栽培','帰':'帰化','不明':'不明','疑問':'疑問'};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// normalize: hiragana→katakana, full→half width, lowercase, drop spaces/ー variants kept
+function norm(s){
+  return String(s).normalize('NFKC').toLowerCase()
+    .replace(/[\u3041-\u3096]/g,c=>String.fromCharCode(c.charCodeAt(0)+0x60))
+    .replace(/[×]/g,'x').replace(/\s+/g,' ').trim();
+}
+const plainSci=s=>s.replace(/[{}]/g,'');
+// precompute haystacks
+const H=new Array(N), W=new Array(N), SCI=new Array(N);
+for(let i=0;i<N;i++){
+  const r=R[i]; SCI[i]=norm(plainSci(r[0])); W[i]=norm(r[1]);
+  H[i]=W[i]+'\u0001'+norm(r[2])+'\u0001'+SCI[i]+'\u0001'+norm(FAM[r[4]].join(' ')+' '+ORD[r[5]].join(' ')+' '+ENG[r[6]].join(' '));
+}
+$('total').textContent=N.toLocaleString()+' 件収録';
+// build filter options
+function fill(sel,items){for(const [v,t] of items){const o=document.createElement('option');o.value=v;o.textContent=t;sel.appendChild(o);}}
+const cntBy=(k)=>{const c={};for(const r of R)c[r[k]]=(c[r[k]]||0)+1;return c;};
+const ordC=cntBy(5), famC=cntBy(4), stC=cntBy(3), ecoC=cntBy(9);
+fill($('fOrd'),ORD.map((o,i)=>[i,o]).filter(([i,o])=>o[0]).sort((a,b)=>a[1][0].localeCompare(b[1][0],'ja')).map(([i,o])=>[i,o[0]+'（'+ordC[i]+'）']));
+function fillFam(ord){
+  const s=$('fFam'); s.length=1;
+  const ok=new Set(); if(ord!=='') for(const r of R) if(r[5]==ord) ok.add(r[4]);
+  fill(s,FAM.map((f,i)=>[i,f]).filter(([i,f])=>f[0]&&(ord===''||ok.has(i))).sort((a,b)=>a[1][0].localeCompare(b[1][0],'ja')).map(([i,f])=>[i,f[0]+'（'+famC[i]+'）']));
+}
+fillFam('');
+fill($('fSt'),ST.map((s,i)=>[i,s+'（'+stC[i]+'）']));
+fill($('fEco'),[['__none','記載なし（在来など）']].concat(Object.keys(ecoC).filter(k=>k).sort((a,b)=>ecoC[b]-ecoC[a]).map(k=>[k,(ECOL[k]||k)+'（'+ecoC[k]+'）'])));
+
+// rendering helpers
+function sciHTML(s,hl){
+  let out='',re=/\{([^}]*)\}|([^{]+)/g,m;
+  while((m=re.exec(s))){ if(m[1]!==undefined) out+='<i>'+hlText(m[1],hl)+'</i>'; else out+='<span class="au">'+hlText(m[2],hl)+'</span>'; }
+  return out;
+}
+function hlText(t,terms){
+  t=String(t); if(!terms||!terms.length) return esc(t);
+  // map normalized positions back approximately: works since norm keeps length for kana/ascii
+  const n=norm(t); if(n.length!==t.normalize('NFKC').length) return esc(t);
+  const src=t.normalize('NFKC'); const marks=new Array(src.length).fill(false);
+  for(const q of terms){ let p=0; while(q&&(p=n.indexOf(q,p))>-1){ for(let k=p;k<p+q.length;k++)marks[k]=true; p+=q.length; } }
+  let o='',on=false; for(let k=0;k<src.length;k++){ if(marks[k]!==on){o+=on?'</mark>':'<mark>';on=marks[k];} o+=esc(src[k]); } if(on)o+='</mark>'; return o;
+}
+function tags(r){
+  const st=ST[r[3]], f=FAM[r[4]];
+  let h='';
+  if(f[0]) h+='<span class="tag t-fam">'+esc(f[0])+'</span>';
+  h+='<span class="tag '+(st==='標準'?'t-std':'t-st')+'">'+esc(st)+'</span>';
+  if(r[9]) h+='<span class="tag t-eco">'+esc(ECOL[r[9]]||r[9])+'</span>';
+  return h;
+}
+
+// search
+let results=[], shown=0, terms=[];
+const PAGE=60;
+function run(){
+  const qv=$('q').value; $('clr').classList.toggle('on',!!qv);
+  terms=norm(qv).split(' ').filter(Boolean);
+  const fo=$('fOrd').value, ff=$('fFam').value, fs=$('fSt').value, fe=$('fEco').value;
+  ['fOrd','fFam','fSt','fEco'].forEach(id=>$(id).classList.toggle('set',!!$(id).value));
+  const any=terms.length||fo||ff||fs||fe;
+  $('reset').hidden=!any;
+  results=[];
+  if(!any){ render(true); return; }
+  const scored=[];
+  for(let i=0;i<N;i++){
+    const r=R[i];
+    if(fo!==''&&r[5]!=fo) continue;
+    if(ff!==''&&r[4]!=ff) continue;
+    if(fs!==''&&r[3]!=fs) continue;
+    if(fe!==''&&(fe==='__none'?r[9]!=='':r[9]!==fe)) continue;
+    let ok=true; for(const t of terms){ if(H[i].indexOf(t)<0){ok=false;break;} }
+    if(!ok) continue;
+    let sc=0;
+    if(terms.length){ const t=terms[0], q=terms.join(' ');
+      if(W[i]===q) sc=0; else if(W[i].startsWith(t)) sc=1; else if(SCI[i].startsWith(q)) sc=2; else if(W[i].includes(t)) sc=3; else sc=4; }
+    if(ST[r[3]]!=='標準') sc+=0.5;
+    scored.push([sc,i]);
+  }
+  scored.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  results=scored.map(x=>x[1]);
+  render(true);
+}
+function render(reset){
+  const list=$('list');
+  if(reset){ list.innerHTML=''; shown=0; window.scrollTo(0,0); }
+  const any=$('reset').hidden===false;
+  $('count').textContent=any?(results.length.toLocaleString()+' 件'):'';
+  $('emptyBox').innerHTML='';
+  if(!any){
+    $('emptyBox').innerHTML='<div class="empty"><p>和名はひらがなでもカタカナでも探せます。学名や科名でも検索できます。</p><div class="hint">'+
+      ['さくら','すみれ','Quercus','ラン科','オオバコ'].map(s=>'<button data-q="'+s+'">'+s+'</button>').join('')+'</div></div>';
+    $('more').hidden=true; return;
+  }
+  if(!results.length){
+    $('emptyBox').innerHTML='<div class="empty"><p>一致する植物がありません。</p><p>語を短くするか、絞り込みを外してみてください。</p></div>';
+    $('more').hidden=true; return;
+  }
+  const frag=document.createDocumentFragment(), end=Math.min(results.length,shown+PAGE);
+  for(let k=shown;k<end;k++){
+    const i=results[k], r=R[i], li=document.createElement('li');
+    li.className='item'+(ST[r[3]]==='標準'?'':' syn');
+    li.innerHTML='<button data-i="'+i+'"><div class="wa">'+(r[1]?hlText(r[1],terms):'<span style="color:var(--ink2)">（和名なし）</span>')+'</div>'+
+      '<div class="sci">'+sciHTML(r[0],terms)+'</div>'+
+      (r[2]?'<div class="sub">別名：'+hlText(r[2],terms)+'</div>':'')+
+      '<div class="sub">'+tags(r)+'</div></button>';
+    frag.appendChild(li);
+  }
+  list.appendChild(frag); shown=end;
+  $('more').hidden=shown>=results.length;
+  $('more').textContent='さらに表示（残り '+(results.length-shown).toLocaleString()+' 件）';
+}
+
+// detail sheet
+function open(i){
+  const r=R[i], f=FAM[r[4]], o=ORD[r[5]], e=ENG[r[6]], f2=FAM2[r[8]];
+  const row=(k,v,en)=>v?'<dt>'+k+'</dt><dd>'+esc(v)+(en?'<span class="en">'+esc(en)+'</span>':'')+'</dd>':'';
+  const same=r[1]?R.map((x,j)=>[x,j]).filter(([x,j])=>j!==i&&x[1]===r[1]):[];
+  $('sheet').innerHTML='<button class="close" id="cls" aria-label="閉じる">✕</button><div class="grab"></div>'+
+    '<div class="wa">'+esc(r[1]||'（和名なし）')+'</div><div class="sci">'+sciHTML(r[0])+'</div><div class="sub">'+tags(r)+'</div>'+
+    '<dl>'+row('別名',r[2])+row('ステータス',ST[r[3]])+row('生態',r[9]?(ECOL[r[9]]||r[9]):'')+row('発表年',r[10])+row('YList ID',r[11])+row('修正日',r[12])+'</dl>'+
+    '<h3>分類</h3><dl>'+row('目（APG）',o[0],o[1])+row('科（APG）',f[0],f[1])+(f2[0]&&f2[0]!==f[0]?row('科（APG II）',f2[0],f2[1]):'')+
+      row('科（エングラー）',e[0],e[1])+row('科（クロンキスト）',CRO[r[7]])+'</dl>'+
+    '<div>'+(o[0]?'<button class="linkbtn" data-ord="'+r[5]+'">'+esc(o[0])+'の植物を見る</button>':'')+(f[0]?'<button class="linkbtn" data-fam="'+r[4]+'" data-ord2="'+r[5]+'">'+esc(f[0])+'の植物を見る</button>':'')+'</div>'+
+    (same.length?'<h3>同じ和名の別の学名（'+same.length+'）</h3><ul class="rel">'+same.slice(0,50).map(([x,j])=>'<li data-i="'+j+'"><span class="sci">'+sciHTML(x[0])+'</span> <span class="tag '+(ST[x[3]]==='標準'?'t-std':'t-st')+'">'+esc(ST[x[3]])+'</span></li>').join('')+'</ul>':'');
+  $('scrim').classList.add('on'); $('sheet').classList.add('on'); $('sheet').scrollTop=0; $('cls').focus();
+}
+function close(){ $('scrim').classList.remove('on'); $('sheet').classList.remove('on'); }
+
+// events
+let tm; $('q').addEventListener('input',()=>{clearTimeout(tm);tm=setTimeout(run,140);});
+$('clr').onclick=()=>{$('q').value='';run();$('q').focus();};
+$('fOrd').onchange=()=>{fillFam($('fOrd').value);run();};
+['fFam','fSt','fEco'].forEach(id=>$(id).onchange=run);
+$('reset').onclick=()=>{$('q').value='';['fOrd','fFam','fSt','fEco'].forEach(id=>$(id).value='');fillFam('');run();};
+$('more').onclick=()=>render(false);
+$('list').addEventListener('click',e=>{const b=e.target.closest('button[data-i]');if(b)open(+b.dataset.i);});
+$('emptyBox').addEventListener('click',e=>{const b=e.target.closest('button[data-q]');if(b){$('q').value=b.dataset.q;run();}});
+$('sheet').addEventListener('click',e=>{
+  if(e.target.closest('#cls')) return close();
+  const li=e.target.closest('li[data-i]'); if(li) return open(+li.dataset.i);
+  const b=e.target.closest('.linkbtn'); if(!b) return;
+  $('q').value='';
+  if(b.dataset.ord!==undefined){ $('fOrd').value=b.dataset.ord; fillFam(b.dataset.ord); $('fFam').value=''; }
+  else { $('fOrd').value=b.dataset.ord2; fillFam(b.dataset.ord2); $('fFam').value=b.dataset.fam; }
+  close(); run();
+});
+$('scrim').onclick=close;
+document.addEventListener('keydown',e=>{if(e.key==='Escape')close();});
+run();
+}
+</script>
+</body>
+</html>
