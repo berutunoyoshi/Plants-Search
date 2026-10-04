@@ -1,6 +1,6 @@
 // データや辞書を更新したら VERSION を変えてください
-const VERSION = 'ylist-20210514-v7';
-const CORE = ['./', 'index.html', 'data.json', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
+const VERSION = 'ylist-20210514-v8';
+const CORE = ['./', 'index.html', 'data.json?v=8', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
   // cache:'reload' でブラウザのHTTPキャッシュを経由せず、必ずサーバーから最新を取得
@@ -23,7 +23,7 @@ self.addEventListener('fetch', e => {
     return;
   }
   // それ以外（data.json・アイコン・フォント）はキャッシュ優先
-  e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit ||
+  e.respondWith(caches.match(req).then(hit => hit ||
     fetch(req).then(res => {
       if (res && (res.ok || res.type === 'opaque')) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(req, copy)); }
       return res;

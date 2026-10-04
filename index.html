@@ -169,6 +169,8 @@ nav.tabs button[aria-current="page"]{color:var(--moss);font-weight:700}
 .toast{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:14px;z-index:40;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
 
+.gchips{flex-wrap:wrap;margin:10px 0 0}
+.gchips .cn{font-size:11px;margin-left:4px;opacity:.75}
 .qlab{display:block;font-size:13px;color:var(--ink2);margin:10px 0 4px}
 .qsel{display:block;width:100%;max-width:none;margin-top:4px;border-radius:10px;padding:10px 32px 10px 12px;font-size:15px}
 .seg.grid4{display:grid;grid-template-columns:1fr 1fr;border-radius:14px;gap:3px}
@@ -190,7 +192,7 @@ nav.tabs button[aria-current="page"]{color:var(--moss);font-weight:700}
 .qres.bad{background:var(--barkSoft);color:var(--ink)} .qres.bad b{color:var(--bark)}
 .study{overflow:auto}
 @media (prefers-reduced-motion: reduce){.sheet,.scrim{transition:none}}
-</style>
+.stale{position:sticky;top:0;z-index:50;background:var(--barkSoft);color:var(--bark);padding:calc(8px + env(safe-area-inset-top,0px)) 16px 8px;font-size:14px;text-align:center}.stale button{font:inherit;margin-left:8px;border:1px solid var(--bark);background:none;color:var(--bark);border-radius:999px;padding:2px 10px}</style>
 </head>
 <body>
 <div id="vSearch" class="view">
@@ -219,7 +221,7 @@ nav.tabs button[aria-current="page"]{color:var(--moss);font-weight:700}
   <div class="wrap" id="cardsBody"></div>
 </div>
 <div id="vTree" class="view" hidden>
-  <div class="vhead"><div class="wrap"><h2 id="treeTitle">分類をたどる</h2><div class="crumb" id="crumb"></div></div></div>
+  <div class="vhead"><div class="wrap"><h2 id="treeTitle">分類をたどる</h2><div class="crumb" id="crumb"></div><div class="chips gchips" id="grpChips" role="group" aria-label="植物群で絞り込み"></div></div></div>
   <div class="wrap">
     <div class="tbar"><span id="treeCount"></span><label><input type="checkbox" id="stdOnly" checked> 標準名のみ</label></div>
     <div id="treeAct"></div>
@@ -352,9 +354,12 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(hadSW&&!reloaded){ reloaded=true; location.reload(); } });
 }
 document.getElementById('count').textContent='データを読み込み中…';
-fetch('data.json?v=7').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();}).then(start).catch(()=>{
+function staleBanner(){ const d=document.createElement('div'); d.className='stale'; d.innerHTML='古いデータが表示されています。<button>最新データを読み込む</button>';
+  d.querySelector('button').onclick=async()=>{ try{ const ks=await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k))); const rs=await navigator.serviceWorker.getRegistrations(); await Promise.all(rs.map(r=>r.unregister())); }catch(e){} location.reload(); };
+  document.body.prepend(d); }
+fetch('data.json?v=8').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();}).then(start).catch(()=>{
   document.getElementById('count').textContent='データを読み込めませんでした。data.json が index.html と同じ場所にあるか確認してください。';});
-function start(D){
+function start(D){ if(D.ver!==8){ staleBanner(); }
 const R=D.rows, N=R.length;
 const split=a=>a.map(x=>x.split('\t'));
 const FAM=split(D.fam), ORD=split(D.ord), ENG=split(D.eng), FAM2=split(D.fam2), CRO=D.cro, ST=D.st;
@@ -630,16 +635,24 @@ const FNO=D.fam2no||[]; const BIG=1e12;
 const ORDNO=new Map(); for(let i=0;i<N;i++){ const o=R[i][5], n=FNO[R[i][8]]; if(n!=null&&(!ORDNO.has(o)||n<ORDNO.get(o))) ORDNO.set(o,n); }
 const ordNo=k=>ORDNO.has(k)?ORDNO.get(k):BIG, famNo=k=>FNO[k]!=null?FNO[k]:BIG;
 const ordName=k=>ORD[k][0]||ORD[k][1]||'（目の情報なし）', famName=k=>FAM2[k][0]||FAM2[k][1]||'（科の情報なし）';
+const GRP=[['b','コケ植物'],['p','シダ植物'],['g','裸子植物'],['a','被子植物']];
+const grpOfNo=n=>n==null?null:n<1e8?'b':n<6e8?'p':n<7e8?'g':'a';
+const ROWGRP=new Array(N); for(let i=0;i<N;i++) ROWGRP[i]=grpOfNo(FNO[R[i][8]]);
+let treeGrp='all'; try{ treeGrp=localStorage.getItem('ylist.grp')||'all'; }catch(e){}
 let path=[];
 function treeRows(){
   const std=$('stdOnly').checked, out=[];
-  for(let i=0;i<N;i++){ const r=R[i]; if(std&&ST[r[3]]!=='標準') continue;
+  for(let i=0;i<N;i++){ const r=R[i]; if(std&&ST[r[3]]!=='標準') continue; if(treeGrp!=='all'&&ROWGRP[i]!==treeGrp) continue;
     if(path.length>0&&r[5]!==path[0]) continue; if(path.length>1&&r[8]!==path[1]) continue; if(path.length>2&&GENUS[i]!==path[2]) continue; out.push(i); }
   return out;
 }
 function renderTree(){
+  const cnt={}; const std=$('stdOnly').checked; for(let i=0;i<N;i++){ if(std&&ST[R[i][3]]!=='標準') continue; const g=ROWGRP[i]; if(g) cnt[g]=(cnt[g]||0)+1; }
+  $('grpChips').innerHTML='<button data-g="all" class="'+(treeGrp==='all'?'on':'')+'">すべて</button>'+GRP.map(([k,v])=>'<button data-g="'+k+'" class="'+(treeGrp===k?'on':'')+'">'+v+'<span class="cn">'+(cnt[k]||0).toLocaleString()+'</span></button>').join('');
+  $('grpChips').hidden=path.length>0;
+  if(!FNO.length){ $('treeList').innerHTML='<div class="empty"><p>データが古いため分類順に並べられません。</p><p>画面上部の案内から最新データを読み込み直してください。</p></div>'; }
   const rows=treeRows(), lv=path.length;
-  const cr=['<button data-p="0">すべての目</button>'];
+  const gname=treeGrp==='all'?'すべての目':(GRP.find(g=>g[0]===treeGrp)||['',''])[1]; const cr=['<button data-p="0">'+gname+'</button>'];
   if(lv>0) cr.push('<span>›</span><button data-p="1">'+esc(ordName(path[0]))+'</button>');
   if(lv>1) cr.push('<span>›</span><button data-p="2">'+esc(famName(path[1]))+'</button>');
   if(lv>2) cr.push('<span>›</span><button data-p="3"><i style="font-family:var(--la)">'+esc(path[2])+'</i></button>');
@@ -669,6 +682,7 @@ $('treeList').addEventListener('click',e=>{ const b=e.target.closest('.trow'); i
   const k=b.dataset.k; path.push(path.length===2?k:+k); renderTree(); scrollTo(0,0); });
 $('crumb').addEventListener('click',e=>{ const b=e.target.closest('button[data-p]'); if(!b) return; path=path.slice(0,+b.dataset.p); renderTree(); scrollTo(0,0); });
 $('stdOnly').onchange=renderTree;
+$('grpChips').addEventListener('click',e=>{ const b=e.target.closest('button[data-g]'); if(!b) return; treeGrp=b.dataset.g; try{localStorage.setItem('ylist.grp',treeGrp);}catch(_){}; path=[]; renderTree(); scrollTo(0,0); });
 $('treeAct').addEventListener('click',e=>{ if(!e.target.closest('[data-adddeck]')) return;
   let n=0; for(const i of treeRows()){ if(R[i][1]&&!inDeck(i)){ addDeck(i); n++; } } save(); toast(n?n+'件を単語帳に追加しました':'すでにすべて追加済みです'); renderTree(); });
 
@@ -688,11 +702,12 @@ const pick=a=>a[Math.floor(Math.random()*a.length)];
 function rangePool(){
   const r=qPref.range;
   if(r==='deck') return QPOOL.filter(i=>inDeck(i));
+  if(r.startsWith('g')) return QPOOL.filter(i=>ROWGRP[i]===r.slice(1));
   if(r.startsWith('o')) return byOrd.get(+r.slice(1))||[];
   if(r.startsWith('f')) return byFam.get(+r.slice(1))||[];
   return QPOOL;
 }
-function rangeLabel(){ const r=qPref.range; if(r==='all') return 'すべての植物'; if(r==='deck') return '単語帳のカード'; if(r[0]==='o') return ordName(+r.slice(1)); return famName(+r.slice(1)); }
+function rangeLabel(){ const r=qPref.range; if(r==='all') return 'すべての植物'; if(r==='deck') return '単語帳のカード'; if(r[0]==='g') return (GRP.find(g=>g[0]===r.slice(1))||['',''])[1]; if(r[0]==='o') return ordName(+r.slice(1)); return famName(+r.slice(1)); }
 // 紛らわしい選択肢：同じ属 → 同じ科 → 同じ目 → 全体
 function distractSp(i,key){
   const r=R[i], seen=new Set([key(i)]), out=[];
@@ -729,7 +744,7 @@ function makeQ(){
 function renderQuizHome(){
   const pool=rangePool();
   let h='<div class="seg grid4" role="group" aria-label="出題形式">'+Object.entries(QMODES).map(([k,v])=>'<button data-qm="'+k+'" class="'+(qPref.mode===k?'on':'')+'">'+v+'</button>').join('')+'</div>';
-  h+='<label class="qlab">出題範囲<select id="qRange" class="qsel"><option value="all">すべての植物（'+QPOOL.length.toLocaleString()+'）</option><option value="deck">単語帳のカード</option>';
+  h+='<label class="qlab">出題範囲<select id="qRange" class="qsel"><option value="all">すべての植物（'+QPOOL.length.toLocaleString()+'）</option><option value="deck">単語帳のカード</option>'+'<optgroup label="植物群">'+GRP.map(([k,v])=>'<option value="g'+k+'">'+v+'（'+QPOOL.filter(i=>ROWGRP[i]===k).length.toLocaleString()+'）</option>').join('')+'</optgroup>';
   const ords=[...byOrd.keys()].sort((a,b)=>ordNo(a)-ordNo(b));
   h+='<optgroup label="目（分類順）">'+ords.map(o=>'<option value="o'+o+'">'+esc(ordName(o))+'（'+byOrd.get(o).length+'）</option>').join('')+'</optgroup>';
   const fams=[...byFam.keys()].sort((a,b)=>famNo(a)-famNo(b));
