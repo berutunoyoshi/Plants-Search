@@ -168,6 +168,27 @@ nav.tabs button[aria-current="page"]{color:var(--moss);font-weight:700}
 .tbar label{display:flex;align-items:center;gap:6px;cursor:pointer}
 .toast{position:fixed;left:50%;bottom:calc(80px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 16px;border-radius:999px;font-size:14px;z-index:40;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.on{opacity:1}
+
+.qlab{display:block;font-size:13px;color:var(--ink2);margin:10px 0 4px}
+.qsel{display:block;width:100%;max-width:none;margin-top:4px;border-radius:10px;padding:10px 32px 10px 12px;font-size:15px}
+.seg.grid4{display:grid;grid-template-columns:1fr 1fr;border-radius:14px;gap:3px}
+.seg.grid4 button{border-radius:11px}
+.qbox{max-width:560px;width:100%;margin:18px auto 14px;text-align:center;background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:22px 16px}
+.qbox .lead{font-size:13px;color:var(--ink2);margin-bottom:10px}
+.qbox .q{font-size:28px;font-weight:700;line-height:1.35}
+.qbox .q.sci{font-size:26px;font-weight:400}
+.la2{font-family:var(--la);font-style:italic;color:var(--ink2)}
+.opts{display:grid;gap:8px;max-width:560px;width:100%;margin:0 auto}
+.opt{font:inherit;font-size:17px;text-align:left;padding:12px 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;min-height:52px}
+.opt .sci{font-size:18px}
+.opt:disabled{cursor:default}
+.opt.right{border-color:var(--moss);background:var(--mossSoft)}
+.opt.wrong{border-color:var(--bark);background:var(--barkSoft)}
+.qres{max-width:560px;width:100%;margin:12px auto 0;padding:10px 14px;border-radius:12px;font-size:14px}
+.qres b{font-size:16px}
+.qres.good{background:var(--mossSoft);color:var(--ink)} .qres.good b{color:var(--moss)}
+.qres.bad{background:var(--barkSoft);color:var(--ink)} .qres.bad b{color:var(--bark)}
+.study{overflow:auto}
 @media (prefers-reduced-motion: reduce){.sheet,.scrim{transition:none}}
 </style>
 </head>
@@ -205,11 +226,16 @@ nav.tabs button[aria-current="page"]{color:var(--moss);font-weight:700}
     <div id="treeList"></div>
   </div>
 </div>
+<div id="vQuiz" class="view" hidden>
+  <div class="vhead"><div class="wrap"><h2>クイズ</h2></div></div>
+  <div class="wrap" id="quizBody" style="padding-top:12px"></div>
+</div>
 <section class="study" id="study" hidden aria-label="単語帳の学習"></section>
 <div class="toast" id="toast" role="status"></div>
 <nav class="tabs" aria-label="画面の切り替え">
   <button data-v="search" aria-current="page"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>検索</button>
   <button data-v="cards"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="13" height="15" rx="2"/><path d="M8 3h10a2 2 0 0 1 2 2v13"/></svg>単語帳</button>
+  <button data-v="quiz"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.3-1 .9-1 1.6V14"/><circle cx="12" cy="17.3" r=".6" fill="currentColor"/></svg>クイズ</button>
   <button data-v="tree"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="12" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v10M12 12H5v5M12 12h7v5"/></svg>分類</button>
 </nav>
 <div class="scrim" id="scrim"></div>
@@ -326,7 +352,7 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.addEventListener('controllerchange',()=>{ if(hadSW&&!reloaded){ reloaded=true; location.reload(); } });
 }
 document.getElementById('count').textContent='データを読み込み中…';
-fetch('data.json?v=6').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();}).then(start).catch(()=>{
+fetch('data.json?v=7').then(r=>{if(!r.ok)throw new Error(r.status);return r.json();}).then(start).catch(()=>{
   document.getElementById('count').textContent='データを読み込めませんでした。data.json が index.html と同じ場所にあるか確認してください。';});
 function start(D){
 const R=D.rows, N=R.length;
@@ -580,7 +606,7 @@ function drawStudy(){
     (s.flip?'<div class="answer"><button class="btn ng" data-ans="0">まだ</button><button class="btn" data-ans="1">覚えた</button></div>':'<div class="answer"><button class="btn sub" data-flip="1" style="grid-column:1/3">答えを見る</button></div>');
 }
 $('study').addEventListener('click',e=>{
-  const t=e.target.closest('[data-x],[data-flip],[data-ans]'); if(!t||!ses) return;
+  if(qz) return; const t=e.target.closest('[data-x],[data-flip],[data-ans]'); if(!t||!ses) return;
   if(t.dataset.x) return endStudy();
   if(t.dataset.flip&&!ses.flip){ ses.flip=true; return drawStudy(); }
   if(t.dataset.ans!==undefined){
@@ -590,47 +616,50 @@ $('study').addEventListener('click',e=>{
     ses.pos++; ses.flip=false; drawStudy();
   }
 });
-document.addEventListener('keydown',e=>{ if(!ses||$('study').hidden) return;
+document.addEventListener('keydown',e=>{ if(!ses||qz||$('study').hidden) return;
   if(e.key===' '||e.key==='Enter'){ e.preventDefault(); if(!ses.flip){ses.flip=true;drawStudy();} }
   else if(ses.flip&&(e.key==='1'||e.key==='ArrowLeft')) $('study').querySelector('[data-ans="0"]').click();
   else if(ses.flip&&(e.key==='2'||e.key==='ArrowRight')) $('study').querySelector('[data-ans="1"]').click();
   else if(e.key==='Escape') endStudy();
 });
 
-// ===== 分類ツリー =====
+// ===== 分類ツリー（LAPG II の分類順） =====
 const GENUS=new Array(N);
 for(let i=0;i<N;i++){ const m=R[i][0].match(/^\{([^ }]+)/); GENUS[i]=m?m[1]:R[i][0].split(' ')[0].replace(/[{}]/g,''); }
+const FNO=D.fam2no||[]; const BIG=1e12;
+const ORDNO=new Map(); for(let i=0;i<N;i++){ const o=R[i][5], n=FNO[R[i][8]]; if(n!=null&&(!ORDNO.has(o)||n<ORDNO.get(o))) ORDNO.set(o,n); }
+const ordNo=k=>ORDNO.has(k)?ORDNO.get(k):BIG, famNo=k=>FNO[k]!=null?FNO[k]:BIG;
+const ordName=k=>ORD[k][0]||ORD[k][1]||'（目の情報なし）', famName=k=>FAM2[k][0]||FAM2[k][1]||'（科の情報なし）';
 let path=[];
 function treeRows(){
   const std=$('stdOnly').checked, out=[];
   for(let i=0;i<N;i++){ const r=R[i]; if(std&&ST[r[3]]!=='標準') continue;
-    if(path.length>0&&r[5]!=path[0]) continue; if(path.length>1&&r[4]!=path[1]) continue; if(path.length>2&&GENUS[i]!==path[2]) continue; out.push(i); }
+    if(path.length>0&&r[5]!==path[0]) continue; if(path.length>1&&r[8]!==path[1]) continue; if(path.length>2&&GENUS[i]!==path[2]) continue; out.push(i); }
   return out;
 }
 function renderTree(){
   const rows=treeRows(), lv=path.length;
   const cr=['<button data-p="0">すべての目</button>'];
-  if(lv>0) cr.push('<span>›</span><button data-p="1">'+esc(ORD[path[0]][0]||ORD[path[0]][1]||'（目なし）')+'</button>');
-  if(lv>1) cr.push('<span>›</span><button data-p="2">'+esc(FAM[path[1]][0])+'</button>');
+  if(lv>0) cr.push('<span>›</span><button data-p="1">'+esc(ordName(path[0]))+'</button>');
+  if(lv>1) cr.push('<span>›</span><button data-p="2">'+esc(famName(path[1]))+'</button>');
   if(lv>2) cr.push('<span>›</span><button data-p="3"><i style="font-family:var(--la)">'+esc(path[2])+'</i></button>');
   $('crumb').innerHTML=lv?cr.join(''):'';
-  $('treeTitle').textContent=lv===0?'分類をたどる':lv===1?(ORD[path[0]][0]||ORD[path[0]][1]||'（目の情報なし）'):lv===2?FAM[path[1]][0]:path[2]+' 属';
+  $('treeTitle').textContent=lv===0?'分類をたどる':lv===1?ordName(path[0]):lv===2?famName(path[1]):path[2]+' 属';
   let act='';
   if(lv>=2){ const n=rows.filter(i=>R[i][1]).length; act='<button class="btn sub" data-adddeck="1"'+(n?'':' disabled')+'>この'+(lv===2?'科':'属')+'の植物を単語帳に追加（'+n+'件）</button>'; }
   $('treeAct').innerHTML=act;
   let h='';
   if(lv<3){
     const g=new Map();
-    for(const i of rows){ const k=lv===0?R[i][5]:lv===1?R[i][4]:GENUS[i]; g.set(k,(g.get(k)||0)+1); }
-    let items=[...g.entries()].map(([k,c])=>{ let ja,la;
-      if(lv===0){ ja=ORD[k][0]; la=ORD[k][1]; if(!ja&&!la) ja='（目の情報なし）'; } else if(lv===1){ ja=FAM[k][0]; la=FAM[k][1]; } else { ja=''; la=k; }
-      return {k,c,ja,la}; });
-    const nj=x=>!x.ja||x.ja.charAt(0)==='（'; items.sort((a,b)=> lv===2?a.la.localeCompare(b.la):(nj(a)!==nj(b)?(nj(a)?1:-1):(a.ja||a.la).localeCompare(b.ja||b.la,'ja')));
-    $('treeCount').textContent=items.length+(lv===0?' 目':lv===1?' 科':' 属')+'・'+rows.length.toLocaleString()+' 件';
+    for(const i of rows){ const k=lv===0?R[i][5]:lv===1?R[i][8]:GENUS[i]; g.set(k,(g.get(k)||0)+1); }
+    const items=[...g.entries()].map(([k,c])=>lv===0?{k,c,ja:ORD[k][0]||(ORD[k][1]?'':'（目の情報なし）'),la:ORD[k][1],no:ordNo(k)}
+      :lv===1?{k,c,ja:FAM2[k][0]||(FAM2[k][1]?'':'（科の情報なし）'),la:FAM2[k][1],no:famNo(k)}:{k,c,ja:'',la:k,no:0});
+    items.sort((a,b)=>a.no-b.no||a.la.localeCompare(b.la));
+    $('treeCount').textContent=items.length+(lv===0?' 目':lv===1?' 科':' 属')+'・'+rows.length.toLocaleString()+' 件'+(lv<2?'（分類順）':'（アルファベット順）');
     h=items.map(x=>'<button class="trow" data-k="'+esc(x.k)+'"><span class="nm">'+(x.ja?'<b>'+esc(x.ja)+'</b>':'')+'<span class="la">'+esc(x.la||'')+'</span></span><span class="ct">'+x.c+'</span><span class="chev">›</span></button>').join('');
   } else {
-    rows.sort((a,b)=>String(R[a][1]||'ン').localeCompare(R[b][1]||'ン','ja'));
-    $('treeCount').textContent=rows.length+' 件';
+    rows.sort((a,b)=>noAuth(R[a][0]).localeCompare(noAuth(R[b][0]))||a-b);
+    $('treeCount').textContent=rows.length+' 件（学名順）';
     h=rows.map(i=>{ const r=R[i]; return '<button class="trow" data-i="'+i+'"><span class="nm"><b>'+(inDeck(i)?'<span class="mk">★</span>':'')+esc(r[1]||'（和名なし）')+'</b><span class="sci" style="font-size:14px">'+sciHTML(r[0])+'</span></span>'+(ST[r[3]]!=='標準'?'<span class="tag t-st">'+esc(ST[r[3]])+'</span>':'')+'<span class="chev">›</span></button>'; }).join('');
   }
   $('treeList').innerHTML=h||'<div class="empty"><p>該当する植物がありません。</p></div>';
@@ -643,11 +672,141 @@ $('stdOnly').onchange=renderTree;
 $('treeAct').addEventListener('click',e=>{ if(!e.target.closest('[data-adddeck]')) return;
   let n=0; for(const i of treeRows()){ if(R[i][1]&&!inDeck(i)){ addDeck(i); n++; } } save(); toast(n?n+'件を単語帳に追加しました':'すでにすべて追加済みです'); renderTree(); });
 
+// ===== クイズ =====
+const LSQ='ylist.quiz.v1';
+let qPref={mode:'wa2sci',range:'all',n:10}, qHist=[];
+try{ const s=JSON.parse(localStorage.getItem(LSQ)||'{}'); if(s.pref) qPref=Object.assign(qPref,s.pref); if(s.hist) qHist=s.hist; }catch(e){}
+const saveQ=()=>{ try{ localStorage.setItem(LSQ,JSON.stringify({pref:qPref,hist:qHist.slice(-50)})); }catch(e){} };
+const QMODES={wa2sci:'和名 → 学名',sci2wa:'学名 → 和名',sp2fam:'植物 → 科',fam2ord:'科 → 目'};
+// 出題に使う：標準名・和名あり・科あり
+const QPOOL=[]; for(let i=0;i<N;i++){ const r=R[i]; if(ST[r[3]]==='標準'&&r[1]&&FAM2[r[8]][0]) QPOOL.push(i); }
+const byFam=new Map(), byGen=new Map(), byOrd=new Map();
+for(const i of QPOOL){ const r=R[i]; [[byFam,r[8]],[byGen,GENUS[i]],[byOrd,r[5]]].forEach(([m,k])=>{ if(!m.has(k)) m.set(k,[]); m.get(k).push(i); }); }
+const famsByOrd=new Map(); for(const [f,arr] of byFam){ const o=R[arr[0]][5]; if(!famsByOrd.has(o)) famsByOrd.set(o,[]); famsByOrd.get(o).push(f); }
+const allFams=[...byFam.keys()], allOrds=[...byOrd.keys()].filter(o=>ORD[o][0]);
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+function rangePool(){
+  const r=qPref.range;
+  if(r==='deck') return QPOOL.filter(i=>inDeck(i));
+  if(r.startsWith('o')) return byOrd.get(+r.slice(1))||[];
+  if(r.startsWith('f')) return byFam.get(+r.slice(1))||[];
+  return QPOOL;
+}
+function rangeLabel(){ const r=qPref.range; if(r==='all') return 'すべての植物'; if(r==='deck') return '単語帳のカード'; if(r[0]==='o') return ordName(+r.slice(1)); return famName(+r.slice(1)); }
+// 紛らわしい選択肢：同じ属 → 同じ科 → 同じ目 → 全体
+function distractSp(i,key){
+  const r=R[i], seen=new Set([key(i)]), out=[];
+  for(const src of [byGen.get(GENUS[i]),byFam.get(r[8]),byOrd.get(r[5]),QPOOL]){
+    const c=shuffle((src||[]).slice(0,4000)); for(const j of c){ if(out.length>=3) break; const k=key(j); if(seen.has(k)) continue; seen.add(k); out.push(j); }
+    if(out.length>=3) break;
+  }
+  return out;
+}
+function makeQ(){
+  const mode=qPref.mode, pool=rangePool(), qs=[];
+  if(mode==='fam2ord'){
+    let fams=[...new Set(pool.map(i=>R[i][8]))].filter(f=>ORD[R[byFam.get(f)[0]][5]][0]);
+    shuffle(fams);
+    for(const f of fams.slice(0,qPref.n)){ const o=R[byFam.get(f)[0]][5];
+      const opts=shuffle(allOrds.filter(x=>x!==o)).slice(0,3).concat([o]);
+      qs.push({kind:'fam2ord',f,ans:o,opts:shuffle(opts)}); }
+    return qs;
+  }
+  const items=shuffle(pool.slice()).slice(0,qPref.n);
+  for(const i of items){
+    if(mode==='sp2fam'){
+      const f=R[i][8], o=R[i][5]; const sib=shuffle((famsByOrd.get(o)||[]).filter(x=>x!==f)); const others=shuffle(allFams.filter(x=>x!==f&&!sib.includes(x)));
+      const opts=sib.concat(others).slice(0,3).concat([f]);
+      qs.push({kind:'sp2fam',i,ans:f,opts:shuffle(opts)});
+    } else {
+      const key=mode==='wa2sci'?(j=>noAuth(R[j][0])):(j=>R[j][1]);
+      const opts=distractSp(i,key).concat([i]);
+      qs.push({kind:mode,i,ans:i,opts:shuffle(opts)});
+    }
+  }
+  return qs;
+}
+function renderQuizHome(){
+  const pool=rangePool();
+  let h='<div class="seg grid4" role="group" aria-label="出題形式">'+Object.entries(QMODES).map(([k,v])=>'<button data-qm="'+k+'" class="'+(qPref.mode===k?'on':'')+'">'+v+'</button>').join('')+'</div>';
+  h+='<label class="qlab">出題範囲<select id="qRange" class="qsel"><option value="all">すべての植物（'+QPOOL.length.toLocaleString()+'）</option><option value="deck">単語帳のカード</option>';
+  const ords=[...byOrd.keys()].sort((a,b)=>ordNo(a)-ordNo(b));
+  h+='<optgroup label="目（分類順）">'+ords.map(o=>'<option value="o'+o+'">'+esc(ordName(o))+'（'+byOrd.get(o).length+'）</option>').join('')+'</optgroup>';
+  const fams=[...byFam.keys()].sort((a,b)=>famNo(a)-famNo(b));
+  h+='<optgroup label="科（分類順）">'+fams.map(f=>'<option value="f'+f+'">'+esc(famName(f))+'（'+byFam.get(f).length+'）</option>').join('')+'</optgroup></select></label>';
+  h+='<div class="qlab">問題数</div><div class="seg" role="group" aria-label="問題数">'+[10,20,30].map(n=>'<button data-qn="'+n+'" class="'+(qPref.n===n?'on':'')+'">'+n+'問</button>').join('')+'</div>';
+  const ok=qPref.mode==='fam2ord'?new Set(pool.map(i=>R[i][8])).size>0:pool.length>0;
+  h+='<button class="btn" data-qstart="1"'+(ok?'':' disabled')+'>クイズを始める</button>';
+  if(!ok) h+='<p class="note">この範囲には出題できる植物がありません（標準名・和名のある植物が対象です）。</p>';
+  else h+='<p class="note">標準名で和名のある植物から出題します。不正解の選択肢は、なるべく同じ属・同じ科・同じ目から選びます。</p>';
+  const recent=qHist.slice(-8).reverse();
+  if(recent.length) h+='<h3>最近の成績</h3><ul class="rel">'+recent.map(x=>'<li style="cursor:default">'+esc(QMODES[x.m]||x.m)+'・'+esc(x.r)+'　<b>'+x.s+' / '+x.n+'</b><span class="lvl" style="float:right">'+new Date(x.t).toLocaleDateString('ja-JP')+'</span></li>').join('')+'</ul>';
+  $('quizBody').innerHTML=h;
+  $('qRange').value=qPref.range; if($('qRange').value!==qPref.range){ qPref.range='all'; $('qRange').value='all'; }
+}
+$('quizBody').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.qm){ qPref.mode=b.dataset.qm; saveQ(); renderQuizHome(); }
+  else if(b.dataset.qn){ qPref.n=+b.dataset.qn; saveQ(); renderQuizHome(); }
+  else if(b.dataset.qstart) startQuiz(); });
+$('quizBody').addEventListener('change',e=>{ if(e.target.id==='qRange'){ qPref.range=e.target.value; saveQ(); renderQuizHome(); } });
+let qz=null;
+function startQuiz(){ const qs=makeQ(); if(!qs.length) return; qz={qs,pos:0,score:0,picked:null,wrong:[]}; $('study').hidden=false; document.body.style.overflow='hidden'; drawQuiz(); }
+function optLabel(q,o){
+  if(q.kind==='wa2sci') return '<span class="sci">'+sciHTML(noAuth(R[o][0]))+'</span>';
+  if(q.kind==='sci2wa') return esc(R[o][1]);
+  if(q.kind==='sp2fam') return esc(FAM2[o][0])+' <i class="la2">'+esc(FAM2[o][1])+'</i>';
+  return esc(ORD[o][0])+' <i class="la2">'+esc(ORD[o][1])+'</i>';
+}
+function qText(q){
+  if(q.kind==='wa2sci') return ['この植物の学名は？','<div class="q">'+esc(R[q.i][1])+'</div>'];
+  if(q.kind==='sci2wa') return ['この学名の和名は？','<div class="q sci">'+sciHTML(noAuth(R[q.i][0]))+'</div>'];
+  if(q.kind==='sp2fam') return ['この植物は何科？','<div class="q">'+esc(R[q.i][1])+'</div><div class="sci" style="margin-top:6px">'+sciHTML(noAuth(R[q.i][0]))+'</div>'];
+  return ['この科は何目？','<div class="q">'+esc(FAM2[q.f][0])+'</div><div class="la2" style="margin-top:6px;font-size:18px">'+esc(FAM2[q.f][1])+'</div>'];
+}
+function drawQuiz(){
+  const z=qz, el=$('study');
+  if(z.pos>=z.qs.length){
+    qHist.push({m:qPref.mode,r:rangeLabel(),s:z.score,n:z.qs.length,t:Date.now()}); saveQ();
+    const wsp=z.wrong.filter(q=>q.i!==undefined);
+    el.innerHTML='<div class="top"><span></span><button class="iconbtn" data-qx="1" aria-label="閉じる">✕</button></div><div class="done" style="overflow:auto"><p>'+esc(QMODES[qPref.mode])+'・'+esc(rangeLabel())+'</p><b>'+z.score+' / '+z.qs.length+'</b><p>正解数</p>'+
+      (z.wrong.length?'<h3 style="text-align:left">間違えた問題</h3><ul class="rel" style="text-align:left">'+z.wrong.map(q=>'<li style="cursor:default">'+(q.i!==undefined?esc(R[q.i][1])+'　<span class="sci">'+sciHTML(noAuth(R[q.i][0]))+'</span>　'+esc(FAM2[R[q.i][8]][0]):esc(FAM2[q.f][0])+' → '+esc(ORD[q.ans][0]))+'</li>').join('')+'</ul>':'<p>全問正解です！</p>')+
+      (wsp.length?'<button class="btn sub" data-qdeck="1">間違えた植物を単語帳に追加（'+wsp.length+'件）</button>':'')+
+      '<button class="btn" data-qagain="1">もう一度</button><button class="btn sub" data-qx="1">終わる</button></div>';
+    return;
+  }
+  const q=z.qs[z.pos], [lead,body]=qText(q), answered=z.picked!==null;
+  let info='';
+  if(answered){
+    const ok=z.picked===q.ans;
+    if(q.kind==='fam2ord') info=esc(FAM2[q.f][0])+'は'+esc(ORD[q.ans][0])+'（'+esc(ORD[q.ans][1])+'）';
+    else { const r=R[q.i]; info=esc(r[1])+'　<span class="sci">'+sciHTML(r[0])+'</span><br>'+esc(FAM2[r[8]][0])+'・'+esc(ORD[r[5]][0]); }
+    info='<div class="qres '+(ok?'good':'bad')+'"><b>'+(ok?'正解':'不正解')+'</b><div>'+info+'</div></div>';
+  }
+  el.innerHTML='<div class="top"><span class="lvl">'+(z.pos+1)+' / '+z.qs.length+'　正解 '+z.score+'</span><button class="iconbtn" data-qx="1" aria-label="クイズを終える">✕</button></div>'+
+    '<div class="bar"><i style="width:'+(z.pos/z.qs.length*100)+'%"></i></div>'+
+    '<div class="qbox"><div class="lead">'+lead+'</div>'+body+'</div>'+
+    '<div class="opts">'+q.opts.map((o,k)=>{ let c=''; if(answered){ if(o===q.ans) c=' right'; else if(o===z.picked) c=' wrong'; }
+      return '<button class="opt'+c+'" data-o="'+k+'"'+(answered?' disabled':'')+'>'+optLabel(q,o)+'</button>'; }).join('')+'</div>'+info+
+    (answered?'<button class="btn" data-qnext="1" style="max-width:560px;width:100%;margin:10px auto 0">'+(z.pos+1<z.qs.length?'次の問題':'結果を見る')+'</button>':'');
+}
+$('study').addEventListener('click',e=>{ if(!qz) return; const b=e.target.closest('button'); if(!b) return;
+  if(b.dataset.qx){ qz=null; $('study').hidden=true; document.body.style.overflow=''; renderQuizHome(); return; }
+  if(b.dataset.o!==undefined&&qz.picked===null){ const q=qz.qs[qz.pos]; qz.picked=q.opts[+b.dataset.o]; if(qz.picked===q.ans) qz.score++; else qz.wrong.push(q); drawQuiz(); return; }
+  if(b.dataset.qnext){ qz.pos++; qz.picked=null; drawQuiz(); return; }
+  if(b.dataset.qagain){ startQuiz(); return; }
+  if(b.dataset.qdeck){ let n=0; for(const q of qz.wrong) if(q.i!==undefined&&!inDeck(q.i)){ addDeck(q.i); n++; } save(); toast(n?n+'件を単語帳に追加しました':'すでに追加済みです'); b.disabled=true; }
+});
+document.addEventListener('keydown',e=>{ if(!qz||$('study').hidden) return;
+  if(qz.picked===null&&/^[1-4]$/.test(e.key)){ const b=$('study').querySelector('[data-o="'+(+e.key-1)+'"]'); if(b) b.click(); }
+  else if(qz.picked!==null&&(e.key==='Enter'||e.key===' ')){ e.preventDefault(); const b=$('study').querySelector('[data-qnext]'); if(b) b.click(); }
+  else if(e.key==='Escape'){ const b=$('study').querySelector('[data-qx]'); if(b) b.click(); }
+});
+
 // ===== 画面切り替え =====
 function showView(v){
-  for(const [k,id] of [['search','vSearch'],['cards','vCards'],['tree','vTree']]) $(id).hidden=k!==v;
+  for(const [k,id] of [['search','vSearch'],['cards','vCards'],['quiz','vQuiz'],['tree','vTree']]) $(id).hidden=k!==v;
   document.querySelectorAll('nav.tabs button').forEach(b=>{ if(b.dataset.v===v) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current'); });
-  if(v==='cards') renderCards(); if(v==='tree') renderTree(); if(v==='search') render(true);
+  if(v==='cards') renderCards(); if(v==='tree') renderTree(); if(v==='quiz') renderQuizHome(); if(v==='search') render(true);
   close(); scrollTo(0,0);
 }
 document.querySelector('nav.tabs').addEventListener('click',e=>{ const b=e.target.closest('button[data-v]'); if(b) showView(b.dataset.v); });

@@ -1,5 +1,5 @@
 // データや辞書を更新したら VERSION を変えてください
-const VERSION = 'ylist-20210514-v6';
+const VERSION = 'ylist-20210514-v7';
 const CORE = ['./', 'index.html', 'data.json', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
